@@ -2,34 +2,38 @@
 %{!?scl:%global pkg_name %{name}}
 %{?java_common_find_provides_and_requires}
 
-%global version_suffix 201506240215-r
+%global baserelease 2
+
+%global version_suffix 201601211800-r
 
 Name:           %{?scl_prefix}eclipse-jgit
-Version:        4.0.1
-Release:        2.4.bs2%{?dist}
+Version:        4.2.0
+Release:        1.%{baserelease}%{?dist}
 Summary:        Eclipse JGit
 
 License:        BSD
 URL:            http://www.eclipse.org/egit/
 Source0:        http://git.eclipse.org/c/jgit/jgit.git/snapshot/jgit-%{version}.%{version_suffix}.tar.xz
 Patch0:         fix_jgit_sh.patch
+# Patch for latest versions of args4j
 Patch1:         eclipse-jgit-413163.patch
+# Have to patch for latest vesions of jetty
+Patch2:         eclipse-jgit-jetty-9.3.7.patch
 
 BuildArch: noarch
 
+BuildRequires:  %{?scl_prefix}eclipse-filesystem
 BuildRequires:  %{?scl_prefix_java_common}maven-local
 BuildRequires:  %{?scl_prefix_maven}maven-shade-plugin
 BuildRequires:  %{?scl_prefix}tycho
-BuildRequires:  %{?scl_prefix}eclipse-filesystem
-BuildRequires:  %{?scl_prefix}args4j >= 2.0.12
+BuildRequires:  %{?scl_prefix}args4j
 BuildRequires:  %{?scl_prefix_java_common}apache-commons-compress
 BuildRequires:  %{?scl_prefix_java_common}xz-java >= 1.1-2
 BuildRequires:  %{?scl_prefix}javaewah
-BuildRequires:  %{?scl_prefix_java_common}slf4j-simple
+BuildRequires:  %{?scl_prefix_java_common}slf4j
 BuildRequires:  %{?scl_prefix}jgit
-Requires:       %{?scl_prefix}jgit = %{version}-%{release}
-Requires:       %{?scl_prefix_java_common}slf4j-simple
 Requires:       %{?scl_prefix}eclipse-filesystem
+Requires:       %{?scl_prefix}jgit = %{version}-%{release}
 
 %description
 A pure Java implementation of the Git version control system.
@@ -52,6 +56,9 @@ Command line Git tool built entirely in Java.
 
 %patch0
 %patch1 -p1
+%if 0%{?fedora} >= 24
+%patch2 -p1
+%endif
 
 #javaewah change
 sed -i -e "s/javaewah/com.googlecode.javaewah.JavaEWAH/g" org.eclipse.jgit.packaging/org.eclipse.jgit{,.pgm}.feature/feature.xml
@@ -67,7 +74,6 @@ done
 %pom_disable_module org.eclipse.jgit.pgm.test
 %pom_disable_module org.eclipse.jgit.junit.http
 %pom_disable_module org.eclipse.jgit.junit.feature org.eclipse.jgit.packaging
-
 %pom_disable_module org.eclipse.jgit.ant.test
 %pom_disable_module org.eclipse.jgit.test
 
@@ -79,7 +85,6 @@ done
 # Don't build source features
 %pom_disable_module org.eclipse.jgit.source.feature org.eclipse.jgit.packaging
 %pom_disable_module org.eclipse.jgit.pgm.source.feature org.eclipse.jgit.packaging
-%pom_disable_module org.eclipse.jgit.http.apache.feature org.eclipse.jgit.packaging
 
 # Use Equinox OSGi instead of Felix
 %pom_change_dep -r org.osgi:org.osgi.core org.eclipse.osgi:org.eclipse.osgi
@@ -88,17 +93,32 @@ done
 sed -i -e 's/0.7.9,0.8.0/0.7.9,0.9.0/g' org.eclipse.jgit/META-INF/MANIFEST.MF
 sed -i -e 's/0.7.9,0.8.0/0.7.9,0.9.0/g' org.eclipse.jgit.test/META-INF/MANIFEST.MF
 
+# Remove unnecessary jacoco and javadoc usage
 %pom_remove_plugin org.jacoco:jacoco-maven-plugin
+
+# Relax version restriction for args4j
+sed -i /org.kohsuke.args4j/s/2\\.1\\.0/3/ $(find -name MANIFEST.MF)
 
 # Don't attach shell script artifact
 %pom_remove_plugin org.codehaus.mojo:build-helper-maven-plugin org.eclipse.jgit.pgm
 
+# Does not build due to missing OSGi metadata in httpcomponents-client-cache
+sed -i -e '/client\.cache/d' org.eclipse.jgit.http.apache/META-INF/MANIFEST.MF
+
+# Remove org.apache.log4j
+%pom_xpath_remove "plugin[@id='org.apache.log4j']" org.eclipse.jgit.packaging/org.eclipse.jgit.feature/feature.xml
+%pom_remove_dep log4j:log4j . org.eclipse.jgit.pgm
+
 # org.slf4j.api -> slf4j.api
-# org.slf4j.impl.log4j12 -> slf4j.log4j12
+# org.slf4j.impl.log4j12 -> slf4j.simple
 sed -i 's/org\.slf4j\.api/slf4j\.api/
         s/org\.slf4j\.impl\.log4j12/slf4j\.simple/' \
 org.eclipse.jgit.packaging/org.eclipse.jgit.feature/feature.xml
-sed -i 's/slf4j-log4j12/slf4j-simple/' pom.xml org.eclipse.jgit.pgm/pom.xml
+%pom_change_dep org.slf4j:slf4j-log4j12 org.slf4j:slf4j-simple . org.eclipse.jgit.pgm
+
+pushd org.eclipse.jgit.packaging
+%mvn_package "::pom::" __noinstall
+popd
 %{?scl:EOF}
 
 
@@ -113,7 +133,6 @@ sed -i 's/slf4j-log4j12/slf4j-simple/' pom.xml org.eclipse.jgit.pgm/pom.xml
 
 # Second invocation builds the eclipse features
 pushd org.eclipse.jgit.packaging
-%mvn_package org.eclipse.jgit:jgit.tycho.parent __noinstall
 %mvn_build -j -f -- -Dfedora.p2.repos=$(pwd)/.m2
 popd
 %{?scl:EOF}
@@ -130,11 +149,6 @@ echo '%{_javadocdir}/jgit' >>.mfiles-javadoc
 
 pushd org.eclipse.jgit.packaging
 %mvn_install
-
-# remove broken symlink on maven30 jar
-# (this is an optional dep of log4j, but we can't depend on maven30 at runtime)
-sed -i -e '/jms/d' .mfiles
-rm %{buildroot}/%{_datadir}/eclipse/dropins/jgit/eclipse/plugins/org.apache.geronimo.specs.geronimo-jms_1.1_spec_1.1.1.jar
 popd
 
 # Binary
@@ -156,18 +170,50 @@ install -m 755 org.eclipse.jgit.pgm/jgit.sh %{buildroot}%{_bindir}/jgit
 %doc LICENSE README.md
 
 %changelog
-* Thu Jul 16 2015 Mat Booth <mat.booth@redhat.com> - 4.0.1-2.4
-- Rebuilt to avoid broken symlink on a maven30 package
-- Fix unowned directories
+* Mon Jan 25 2016 Mat Booth <mat.booth@redhat.com> - 4.2.0-1.2
+- Rebuilt to generate symlinks
 
-* Mon Jul 06 2015 Mat Booth <mat.booth@redhat.com> - 4.0.1-2.3
-- Require jgit to be present to generate symlinks correctly
-
-* Thu Jul 02 2015 Mat Booth <mat.booth@redhat.com> - 4.0.1-2.2
-- Rebuild to regenerate symlinks
-
-* Tue Jun 30 2015 Mat Booth <mat.booth@redhat.com> - 4.0.1-2.1
+* Mon Jan 25 2016 Mat Booth <mat.booth@redhat.com> - 4.2.0-1.1
 - Import latest from Fedora
+
+* Fri Jan 22 2016 Mat Booth <mat.booth@redhat.com> - 4.2.0-1
+- Update to latest upstream release
+- Add patch for latest version of jetty
+
+* Tue Dec 08 2015 Mat Booth <mat.booth@redhat.com> - 4.1.1-2
+- Rebuild to re-generate symlinks
+
+* Tue Dec 08 2015 Mat Booth <mat.booth@redhat.com> - 4.1.1-1
+- Update to latest upstream release
+
+* Sun Nov 29 2015 Mat Booth <mat.booth@redhat.com> - 4.1.0-6
+- Fix a problem with command line "jgit daemon" invocation
+- This should also fix rhbz#1228138
+
+* Mon Nov 16 2015 Alexander Kurtakov <akurtako@redhat.com> 4.1.0-5
+- Rebuild for latest slf4j.
+
+* Mon Oct 12 2015 Mat Booth <mat.booth@redhat.com> - 4.1.0-4
+- Drop R on slf4j.
+
+* Thu Oct 08 2015 Roland Grunberg <rgrunber@redhat.com> - 4.1.0-3
+- Use slf4j.simple instead of slf4j.log4j12.
+
+* Wed Sep 30 2015 Mat Booth <mat.booth@redhat.com> - 4.1.0-2
+- Regenerate symlinks
+
+* Tue Sep 29 2015 Mat Booth <mat.booth@redhat.com> - 4.1.0-1
+- Update to 4.1.0
+
+* Mon Sep 14 2015 Roland Grunberg <rgrunber@redhat.com> - 4.0.1-5
+- Rebuild as an Eclipse p2 Droplet.
+
+* Tue Jul  7 2015 Mikolaj Izdebski <mizdebsk@redhat.com> - 4.0.1-4
+- Relax version restriction for args4j
+
+* Tue Jun 30 2015 Mat Booth <mat.booth@redhat.com> - 4.0.1-3
+- Does not require eclipse-platform, only eclipse-filesystem
+- Drop incomplete SCL macros
 
 * Wed Jun 24 2015 Alexander Kurtakov <akurtako@redhat.com> 4.0.1-2
 - Rebuild to fix symlinks.
