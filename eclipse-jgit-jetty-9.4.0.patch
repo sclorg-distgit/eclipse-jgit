@@ -1,0 +1,51 @@
+--- org.eclipse.jgit.junit.http/src/org/eclipse/jgit/junit/http/AppServer.java.orig	2016-06-13 11:40:49.930107546 +0100
++++ org.eclipse.jgit.junit.http/src/org/eclipse/jgit/junit/http/AppServer.java	2016-06-13 11:45:22.354906250 +0100
+@@ -53,11 +53,14 @@
+ import java.net.UnknownHostException;
+ import java.util.ArrayList;
+ import java.util.List;
++import java.util.concurrent.ConcurrentMap;
++import java.util.concurrent.ConcurrentHashMap;
+ 
+ import org.eclipse.jetty.security.Authenticator;
+ import org.eclipse.jetty.security.ConstraintMapping;
+ import org.eclipse.jetty.security.ConstraintSecurityHandler;
+-import org.eclipse.jetty.security.MappedLoginService;
++import org.eclipse.jetty.security.AbstractLoginService;
++import org.eclipse.jetty.security.AbstractLoginService.UserPrincipal;
+ import org.eclipse.jetty.security.authentication.BasicAuthenticator;
+ import org.eclipse.jetty.server.Connector;
+ import org.eclipse.jetty.server.HttpConfiguration;
+@@ -171,15 +174,27 @@
+ 	private void auth(ServletContextHandler ctx, Authenticator authType) {
+ 		final String role = "can-access";
+ 
+-		MappedLoginService users = new MappedLoginService() {
++		AbstractLoginService users = new AbstractLoginService() {
++			protected final ConcurrentMap<String, UserPrincipal> _users = new ConcurrentHashMap<String, UserPrincipal>();
++
++			@Override
++			protected void doStart() throws Exception {
++				UserPrincipal p = new UserPrincipal(username, new Password(password));
++				_users.put(username, p);
++				super.doStart();
++			}
++
+ 			@Override
+-			protected UserIdentity loadUser(String who) {
+-				return null;
++			protected UserPrincipal loadUserInfo(String who) {
++				return _users.get(who);
+ 			}
+ 
+ 			@Override
+-			protected void loadUsers() throws IOException {
+-				putUser(username, new Password(password), new String[] { role });
++			protected String[] loadRoleInfo(UserPrincipal who) {
++				if (_users.get(who.getName()) == null)
++					return null;
++				else
++					return new String[] { role };
+ 			}
+ 		};
+ 
