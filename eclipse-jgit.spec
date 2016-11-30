@@ -2,7 +2,7 @@
 %{!?scl:%global pkg_name %{name}}
 %{?java_common_find_provides_and_requires}
 
-%global baserelease 2
+%global baserelease 3
 
 %global version_suffix 201606070830-r
 
@@ -38,7 +38,7 @@ BuildRequires:  %{?scl_prefix_java_common}apache-commons-compress
 BuildRequires:  %{?scl_prefix_java_common}xz-java >= 1.1-2
 BuildRequires:  %{?scl_prefix}javaewah
 BuildRequires:  %{?scl_prefix_java_common}slf4j
-#BuildRequires:  %{?scl_prefix}jgit
+BuildRequires:  %{?scl_prefix}jgit
 BuildRequires:  %{?scl_prefix_java_common}google-gson
 BuildRequires:  %{?scl_prefix_java_common}jetty-servlet
 BuildRequires:  %{?scl_prefix_java_common}jetty-continuation
@@ -185,6 +185,10 @@ install -m 755 org.eclipse.jgit.pgm/jgit.sh %{buildroot}%{_bindir}/jgit
 %doc LICENSE README.md
 
 %changelog
+* Thu Jul 28 2016 Mat Booth <mat.booth@redhat.com> - 4.4.0-4.3
+- Restore self-requirement
+- Rebuild to regenerate symlinks
+
 * Tue Jul 26 2016 Mat Booth <mat.booth@redhat.com> - 4.4.0-4.2
 - Fix self-requirements, temporarily disable circular BR
 - Port to older jetty
