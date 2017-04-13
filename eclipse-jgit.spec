@@ -2,7 +2,7 @@
 %{!?scl:%global pkg_name %{name}}
 %{?java_common_find_provides_and_requires}
 
-%global baserelease 2
+%global baserelease 3
 
 %global version_suffix 201612231935-r
 
@@ -180,6 +180,9 @@ install -m 755 org.eclipse.jgit.pgm/jgit.sh %{buildroot}%{_bindir}/jgit
 %doc LICENSE README.md
 
 %changelog
+* Mon Jan 16 2017 Mat Booth <mat.booth@redhat.com> - 4.6.0-2.3
+- Rebuild to regenerate symlinks
+
 * Mon Jan 16 2017 Mat Booth <mat.booth@redhat.com> - 4.6.0-2.2
 - Accomodate for old jetty version
 
