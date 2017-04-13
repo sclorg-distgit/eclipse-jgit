@@ -1,6 +1,6 @@
---- org.eclipse.jgit.junit.http/src/org/eclipse/jgit/junit/http/AppServer.java.orig	2016-06-13 11:40:49.930107546 +0100
-+++ org.eclipse.jgit.junit.http/src/org/eclipse/jgit/junit/http/AppServer.java	2016-06-13 11:45:22.354906250 +0100
-@@ -53,11 +53,14 @@
+--- org.eclipse.jgit.junit.http/src/org/eclipse/jgit/junit/http/AppServer.java.sav	2016-09-21 16:06:18.000000000 +0300
++++ org.eclipse.jgit.junit.http/src/org/eclipse/jgit/junit/http/AppServer.java	2016-10-04 20:43:39.992864623 +0300
+@@ -53,11 +53,14 @@ import java.net.URISyntaxException;
  import java.net.UnknownHostException;
  import java.util.ArrayList;
  import java.util.List;
@@ -16,36 +16,57 @@
  import org.eclipse.jetty.security.authentication.BasicAuthenticator;
  import org.eclipse.jetty.server.Connector;
  import org.eclipse.jetty.server.HttpConfiguration;
-@@ -171,15 +174,27 @@
+@@ -168,36 +171,40 @@ public class AppServer {
+ 		return ctx;
+ 	}
+ 
+-	static class TestMappedLoginService extends MappedLoginService {
++	static class TestMappedLoginService extends AbstractLoginService {
+ 		private String role;
++		protected final ConcurrentMap<String, UserPrincipal> _users = new ConcurrentHashMap<String, UserPrincipal>();
+ 
+ 		TestMappedLoginService(String role) {
+ 			this.role = role;
+ 		}
+-
++		
+ 		@Override
+-		protected UserIdentity loadUser(String who) {
+-			return null;
++		protected void doStart() throws Exception {
++			UserPrincipal p = new UserPrincipal(username, new Password(password));
++			_users.put(username, p);
++			super.doStart();
+ 		}
+ 
+ 		@Override
+-		protected void loadUsers() throws IOException {
+-			putUser(username, new Password(password), new String[] { role });
++		protected UserPrincipal loadUserInfo(String who) {
++			return _users.get(who);
+ 		}
+-
+-		protected String[] loadRoleInfo(KnownUser user) {
+-			return null;
++		
++		@Override
++		protected String[] loadRoleInfo(UserPrincipal who) {
++			if (_users.get(who.getName()) == null)
++				return null;
++			else
++				return new String[] { role };
+ 		}
+ 
+-		protected KnownUser loadUserInfo(String usrname) {
+-			return null;
+-		}
+ 	}
+ 
  	private void auth(ServletContextHandler ctx, Authenticator authType) {
  		final String role = "can-access";
  
--		MappedLoginService users = new MappedLoginService() {
-+		AbstractLoginService users = new AbstractLoginService() {
-+			protected final ConcurrentMap<String, UserPrincipal> _users = new ConcurrentHashMap<String, UserPrincipal>();
-+
-+			@Override
-+			protected void doStart() throws Exception {
-+				UserPrincipal p = new UserPrincipal(username, new Password(password));
-+				_users.put(username, p);
-+				super.doStart();
-+			}
-+
- 			@Override
--			protected UserIdentity loadUser(String who) {
--				return null;
-+			protected UserPrincipal loadUserInfo(String who) {
-+				return _users.get(who);
- 			}
- 
- 			@Override
--			protected void loadUsers() throws IOException {
--				putUser(username, new Password(password), new String[] { role });
-+			protected String[] loadRoleInfo(UserPrincipal who) {
-+				if (_users.get(who.getName()) == null)
-+					return null;
-+				else
-+					return new String[] { role };
- 			}
- 		};
- 
+-		MappedLoginService users = new TestMappedLoginService(role);
++		AbstractLoginService users = new TestMappedLoginService(role);
+ 		ConstraintMapping cm = new ConstraintMapping();
+ 		cm.setConstraint(new Constraint());
+ 		cm.getConstraint().setAuthenticate(true);

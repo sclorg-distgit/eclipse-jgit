@@ -2,13 +2,13 @@
 %{!?scl:%global pkg_name %{name}}
 %{?java_common_find_provides_and_requires}
 
-%global baserelease 3
+%global baserelease 2
 
-%global version_suffix 201606070830-r
+%global version_suffix 201612231935-r
 
 Name:           %{?scl_prefix}eclipse-jgit
-Version:        4.4.0
-Release:        4.%{baserelease}%{?dist}
+Version:        4.6.0
+Release:        2.%{baserelease}%{?dist}
 Summary:        Eclipse JGit
 
 License:        BSD
@@ -18,12 +18,9 @@ Patch0:         fix_jgit_sh.patch
 # Patch for latest versions of args4j
 Patch1:         eclipse-jgit-413163.patch
 # Have to patch for latest vesions of jetty
-Patch2:         eclipse-jgit-jetty-9.3.7.patch
-Patch3:         eclipse-jgit-jetty-9.4.0.patch
+Patch2:         eclipse-jgit-jetty-9.4.0.patch
 # Change how feature deps are specified, to avoid embedding versions
-Patch4:         jgit-feature-deps.patch
-
-Patch5:         eclipse-jgit-jetty-9.0.3.patch
+Patch3:         jgit-feature-deps.patch
 
 BuildArch: noarch
 
@@ -40,9 +37,6 @@ BuildRequires:  %{?scl_prefix}javaewah
 BuildRequires:  %{?scl_prefix_java_common}slf4j
 BuildRequires:  %{?scl_prefix}jgit
 BuildRequires:  %{?scl_prefix_java_common}google-gson
-BuildRequires:  %{?scl_prefix_java_common}jetty-servlet
-BuildRequires:  %{?scl_prefix_java_common}jetty-continuation
-BuildRequires:  %{?scl_prefix}glassfish-servlet-api
 Requires:       %{?scl_prefix}eclipse-filesystem
 Requires:       %{?scl_prefix}jgit = %{version}-%{release}
 
@@ -69,23 +63,31 @@ set -e -x
 %patch0
 %patch1 -p1
 %if 0%{?fedora} >= 25
+%patch2 -b .sav
+%endif
 %patch3
-%else
-%if 0%{?fedora} >= 24
-%patch2 -p1
-%endif
-%endif
-%patch4
-%patch5
 
-#javaewah change
+# old jetty
+sed -i -e '/Override/d' \
+ org.eclipse.jgit.junit.http/src/org/eclipse/jgit/junit/http/RecordingLogger.java
+
+# Disable multithreaded build
+rm .mvn/maven.config
+
+# Javaewah change
 sed -i -e "s/javaewah/com.googlecode.javaewah.JavaEWAH/g" org.eclipse.jgit.packaging/org.eclipse.jgit{,.pgm}.feature/feature.xml
+sed -i -e 's/1.1.6,2.0.0/0.8.0,1.0.0/g' org.eclipse.jgit/META-INF/MANIFEST.MF org.eclipse.jgit.test/META-INF/MANIFEST.MF
+sed -i -e 's/WORD_IN_BITS/wordinbits/' org.eclipse.jgit/src/org/eclipse/jgit/internal/storage/file/BitmapIndexImpl.java
 
 # Don't try to get deps from local *maven* repo, use tycho resolved ones
 %pom_remove_dep com.googlecode.javaewah:JavaEWAH
 for p in $(find org.eclipse.jgit.packaging -name pom.xml) ; do
   grep -q dependencies $p && %pom_xpath_remove "pom:dependencies" $p
 done
+
+# Disable "errorprone" compiler
+%pom_xpath_remove "pom:build/pom:pluginManagement/pom:plugins/pom:plugin[pom:artifactId='maven-compiler-plugin']/pom:executions" pom.xml
+%pom_xpath_remove "pom:build/pom:pluginManagement/pom:plugins/pom:plugin[pom:artifactId='maven-compiler-plugin']/pom:dependencies" pom.xml
 
 # Don't need target platform or repository modules with xmvn
 %pom_disable_module org.eclipse.jgit.target org.eclipse.jgit.packaging
@@ -98,13 +100,6 @@ done
 
 # Use Equinox OSGi instead of Felix
 %pom_change_dep -r org.osgi:org.osgi.core org.eclipse.osgi:org.eclipse.osgi
-
-# Relax version restriction for javaewah
-sed -i -e 's/0.7.9,0.8.0/0.7.9,0.9.0/g' org.eclipse.jgit/META-INF/MANIFEST.MF
-sed -i -e 's/0.7.9,0.8.0/0.7.9,0.9.0/g' org.eclipse.jgit.test/META-INF/MANIFEST.MF
-
-# Relax version restriction for gson
-sed -i -e '/com\.google\.gson/s/2.2.4/2.2.2/' org.eclipse.jgit.lfs.server/META-INF/MANIFEST.MF
 
 # Remove unnecessary jacoco and javadoc usage
 %pom_remove_plugin org.jacoco:jacoco-maven-plugin
@@ -185,18 +180,26 @@ install -m 755 org.eclipse.jgit.pgm/jgit.sh %{buildroot}%{_bindir}/jgit
 %doc LICENSE README.md
 
 %changelog
-* Thu Jul 28 2016 Mat Booth <mat.booth@redhat.com> - 4.4.0-4.3
-- Restore self-requirement
-- Rebuild to regenerate symlinks
+* Mon Jan 16 2017 Mat Booth <mat.booth@redhat.com> - 4.6.0-2.2
+- Accomodate for old jetty version
 
-* Tue Jul 26 2016 Mat Booth <mat.booth@redhat.com> - 4.4.0-4.2
-- Fix self-requirements, temporarily disable circular BR
-- Port to older jetty
-- Add missing BRs on servlet and jetty
-- Relax dep on gson
-
-* Tue Jul 26 2016 Mat Booth <mat.booth@redhat.com> - 4.4.0-4.1
+* Mon Jan 16 2017 Mat Booth <mat.booth@redhat.com> - 4.6.0-2.1
 - Auto SCL-ise package for rh-eclipse46 collection
+
+* Thu Jan 05 2017 Mat Booth <mat.booth@redhat.com> - 4.6.0-2
+- Bump to rebuild symlinks
+
+* Wed Jan 04 2017 Mat Booth <mat.booth@redhat.com> - 4.6.0-1
+- Update to latest release
+
+* Tue Oct 4 2016 Alexander Kurtakov <akurtako@redhat.com> 4.5.0-2
+- Remove no longer needed patch.
+
+* Tue Oct 4 2016 Alexander Kurtakov <akurtako@redhat.com> 4.5.0-1
+- Update to upstream 4.5.0 release.
+
+* Wed Aug 03 2016 Sopot Cela <scela@redhat.com> - 4.4.1-1
+- Upgrade to 4.4.1
 
 * Fri Jul 01 2016 Mat Booth <mat.booth@redhat.com> - 4.4.0-4
 - Fix IllegalStateException when starting git daemon from the command line
