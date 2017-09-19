@@ -149,20 +149,18 @@
 +++ ./org.eclipse.jgit.packaging/org.eclipse.jgit.pgm.feature/feature.xml	2016-05-02 16:57:17.671700728 +0100
 @@ -33,6 +33,9 @@
     <requires>
-       <import feature="org.eclipse.jgit" version="4.6.0" match="equivalent"/>
-       <import feature="org.eclipse.jgit.lfs" version="4.6.0" match="equivalent"/>
+       <import feature="org.eclipse.jgit" version="4.6.1" match="equivalent"/>
+       <import feature="org.eclipse.jgit.lfs" version="4.6.1" match="equivalent"/>
 +      <import plugin="org.apache.commons.compress" />
 +      <import plugin="org.kohsuke.args4j" />
 +      <import plugin="javaewah" />
     </requires>
  
     <plugin
-@@ -47,27 +50,6 @@
-          download-size="0"
-          install-size="0"
+@@ -49,25 +52,4 @@
           version="0.0.0"
--         unpack="false"/>
--
+          unpack="false"/>
+ 
 -   <plugin
 -         id="org.apache.commons.compress"
 -         download-size="0"
@@ -182,6 +180,6 @@
 -         download-size="0"
 -         install-size="0"
 -         version="0.0.0"
-          unpack="false"/>
- 
+-         unpack="false"/>
+-
  </feature>

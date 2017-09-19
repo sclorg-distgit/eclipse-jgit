@@ -4,11 +4,11 @@
 
 %global baserelease 3
 
-%global version_suffix 201612231935-r
+%global version_suffix 201703071140-r 
 
 Name:           %{?scl_prefix}eclipse-jgit
-Version:        4.6.0
-Release:        2.%{baserelease}%{?dist}
+Version:        4.6.1
+Release:        1.%{baserelease}%{?dist}
 Summary:        Eclipse JGit
 
 License:        BSD
@@ -17,10 +17,10 @@ Source0:        http://git.eclipse.org/c/jgit/jgit.git/snapshot/jgit-%{version}.
 Patch0:         fix_jgit_sh.patch
 # Patch for latest versions of args4j
 Patch1:         eclipse-jgit-413163.patch
-# Have to patch for latest vesions of jetty
-Patch2:         eclipse-jgit-jetty-9.4.0.patch
 # Change how feature deps are specified, to avoid embedding versions
-Patch3:         jgit-feature-deps.patch
+Patch2:         jgit-feature-deps.patch
+# Have to patch for latest vesions of jetty - disabled after move from 9.4 -> 9.4.1
+#Patch3:         eclipse-jgit-jetty-9.4.0.patch
 
 BuildArch: noarch
 
@@ -51,25 +51,28 @@ Summary:        API documentation for %{pkg_name}
 
 %package -n     %{?scl_prefix}jgit
 Summary:        Java-based command line Git interface
+Requires: 		%{?scl_prefix_java_common}xz-java >= 1.1-2
 
 %description -n %{?scl_prefix}jgit
 Command line Git tool built entirely in Java.
 
 %prep
-%{?scl:scl enable %{scl_maven} %{scl} - << "EOF"}
+%{?scl:scl enable %{scl_maven} %{scl} - << "EOFSCL"}
 set -e -x
 %setup -n jgit-%{version}.%{version_suffix} -q
 
 %patch0
 %patch1 -p1
-%if 0%{?fedora} >= 25
-%patch2 -b .sav
-%endif
-%patch3
+%patch2
 
-# old jetty
-sed -i -e '/Override/d' \
- org.eclipse.jgit.junit.http/src/org/eclipse/jgit/junit/http/RecordingLogger.java
+# disabled for now
+#%if 0%{?fedora} >= 25
+#%patch3 -b .sav
+#%endif
+
+# Disable due to not having a modern jetty here
+%pom_disable_module org.eclipse.jgit.junit.http
+%pom_xpath_remove "plugin[@id='org.eclipse.jgit.junit.http']" org.eclipse.jgit.packaging/org.eclipse.jgit.junit.feature/feature.xml
 
 # Disable multithreaded build
 rm .mvn/maven.config
@@ -127,11 +130,11 @@ org.eclipse.jgit.packaging/org.eclipse.jgit.feature/feature.xml
 pushd org.eclipse.jgit.packaging
 %mvn_package "::pom::" __noinstall
 popd
-%{?scl:EOF}
+%{?scl:EOFSCL}
 
 
 %build
-%{?scl:scl enable %{scl_maven} %{scl} - << "EOF"}
+%{?scl:scl enable %{scl_maven} %{scl} - << "EOFSCL"}
 set -e -x
 # Due to a current limitation of Tycho it is not possible to mix pom-first and
 # manifest-first builds in the same reactor build hence two separate invocations
@@ -144,11 +147,11 @@ set -e -x
 pushd org.eclipse.jgit.packaging
 %mvn_build -j -f -- -Dfedora.p2.repos=$(pwd)/.m2
 popd
-%{?scl:EOF}
+%{?scl:EOFSCL}
 
 
 %install
-%{?scl:scl enable %{scl_maven} %{scl} - << "EOF"}
+%{?scl:scl enable %{scl_maven} %{scl} - << "EOFSCL"}
 set -e -x
 # The macro does not allow us to change the "namespace" value, but here we want to
 # set it to something other than the SRPM name, so explode the macro
@@ -164,7 +167,7 @@ popd
 # Binary
 install -dm 755 %{buildroot}%{_bindir}
 install -m 755 org.eclipse.jgit.pgm/jgit.sh %{buildroot}%{_bindir}/jgit
-%{?scl:EOF}
+%{?scl:EOFSCL}
 
 
 %files -f org.eclipse.jgit.packaging/.mfiles
@@ -180,14 +183,20 @@ install -m 755 org.eclipse.jgit.pgm/jgit.sh %{buildroot}%{_bindir}/jgit
 %doc LICENSE README.md
 
 %changelog
-* Mon Jan 16 2017 Mat Booth <mat.booth@redhat.com> - 4.6.0-2.3
-- Rebuild to regenerate symlinks
+* Mon Apr 03 2017 Mat Booth <mat.booth@redhat.com> - 4.6.1-1.3
+- Rebuilt to regen symlinks
 
-* Mon Jan 16 2017 Mat Booth <mat.booth@redhat.com> - 4.6.0-2.2
-- Accomodate for old jetty version
+* Mon Apr 03 2017 Mat Booth <mat.booth@redhat.com> - 4.6.1-1.2
+- Disable module that no longer builds with old jetty
 
-* Mon Jan 16 2017 Mat Booth <mat.booth@redhat.com> - 4.6.0-2.1
+* Mon Apr 03 2017 Mat Booth <mat.booth@redhat.com> - 4.6.1-1.1
 - Auto SCL-ise package for rh-eclipse46 collection
+
+* Mon Mar 27 2017 Nick Boldt <nboldt@redhat.com> - 4.6.1-1
+- Update to Neon.3 release version; remove jetty 9.4.0 patch
+
+* Fri Feb 10 2017 Fedora Release Engineering <releng@fedoraproject.org> - 4.6.0-3
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_26_Mass_Rebuild
 
 * Thu Jan 05 2017 Mat Booth <mat.booth@redhat.com> - 4.6.0-2
 - Bump to rebuild symlinks
